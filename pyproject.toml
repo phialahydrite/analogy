@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "analogy"
+version = "0.1.0"
+description = "Post-processing toolkit for analog (sandbox) tectonic model experiments: PIV/particle tracking, surfaces, exhumation, kinematics."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Phiala Thouvenin" },
+]
+license = { text = "MIT" }
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "matplotlib",
+    "scikit-image",
+]
+
+[project.optional-dependencies]
+imaging = ["pims"]
+tracking = ["trackpy"]
+colormaps = ["pycpt"]
+all = ["pims", "trackpy", "pycpt"]
+
+[tool.setuptools.packages.find]
+include = ["analogy*"]

@@ -6,6 +6,7 @@ calculation from PIV velocity fields.
 """
 import numpy as np
 import pandas as pd
+from numpy.linalg import lstsq
 
 from .utils import line_fit
 
@@ -17,30 +18,32 @@ __all__ = [
 
 
 def plate_velocity_calc(xmin,xmax,ymin,ymax,xleft,ybottom,selected_frames,
-                          files,numskippedrows=3):
+                          files,numskippedrows=3,step=1):
     '''
-    Calculate the mean velocity of a selected region of PIV velocity data.
-    Used to calcuate the velocity of a region of a sandbox model moving at a
+    Calcuate the mean velocity of a selected reigon of PIV velocity data.
+    Used to calcuate the velocity of a region of a sandbox model moving at a 
         constant velocity, usually the non-deforming/purely-translating
         incoming plate material.
     Also calculate slope-intercept form of fit
     Spatial units are in pixels.
+    [step] multiplies frame indices (frames between PIV pairs); the original
+    script silently used a global [step].
     '''
     # load one file to get index of rows within specified area
     data = pd.read_csv(files[0],skiprows=numskippedrows,usecols = [0,1,2,3],\
-                                   names=['x','y','u','v'])
-
+                                   names=['x','y','u','v'])    
+        
     # shift data to image coordinates
     data.x = data.x - xleft
     data.y = ybottom - data.y
     data.v = -data.v
-
+    
     # get index of lines within defined area
     goodrows=(data.x>=xmin)&(data.x<=xmax)&(data.y>=ymin)&(data.y<=ymax)
-
+    
     means=[]
     for i,sfr in enumerate(selected_frames):
-        data = pd.read_csv(pfiles[i],skiprows=numskippedrows,
+        data = pd.read_csv(files[i],skiprows=numskippedrows,
                            usecols = [0,1,2,3],
                            names=['x','y','u','v']).dropna(how='any')
         window = data.loc[goodrows]
@@ -51,18 +54,18 @@ def plate_velocity_calc(xmin,xmax,ymin,ymax,xleft,ybottom,selected_frames,
 
 def strain_component_calc(x,y,u,v,spacing=8):
     '''
-    Calculate strain and its variants, as well as vorticity from PIVlab
-        x- and y-velocity fields.
+    Calcuate strain and its variants, as well as vorticity from PIV 
+        velocity fields.
     Vorticity calcuation based on Meynart [1983], Omega equation, and other
         continuum mechanics texts (Fung, Eringen, etc...)
     '''
     if x.shape[1] >= x.shape[0]:
         # normal displacement gradients
-        dUdX = np.gradient(u,spacing)[1]
-        dVdY = np.gradient(v,spacing)[0]
+        dUdX = np.gradient(u,spacing)[1] 
+        dVdY = np.gradient(v,spacing)[0] 
         # shear displacement gradients
-        dUdY = np.gradient(u,spacing)[0]
-        dVdX = np.gradient(v,spacing)[1]
+        dUdY = np.gradient(u,spacing)[0] 
+        dVdX = np.gradient(v,spacing)[1] 
         # vorticity
         vor = dVdX - dUdY
         # shear strain
@@ -71,10 +74,10 @@ def strain_component_calc(x,y,u,v,spacing=8):
         firInv = dUdX + dVdY
         # second invariant of strain ['strain magnitude']
         secInv = exy**2 - (dUdX * dVdY)
-        # maximum shear strain
+        # maxlimum shear strain
         maxss = np.sqrt((0.5*(dUdX+dVdY))**2 + exy**2)
         # max compressive strain orientation
-        theta_p = 0.5 * np.arctan2(2 * exy, dUdX - dVdY)
+        theta_p = 0.5 * np.arctan2(2 * exy, dUdX - dVdY) 
         return vor, exy, firInv, secInv, maxss, theta_p
     else:
         raise ValueError('Array input x dimension must be equal to or ' + \
@@ -87,11 +90,11 @@ def vorticity(x,y,u,v,dx=[],dy=[],method='leastsq',pad=False):
     Calcuate vorticity using differing methods.
     Expects inputs in [M,N] arrays.
     Expects these arrays to be in image coordinates.
-
+    
     Originally written by Kristian Sveen [jks@math.uio.no] in 2001, modified
-        for Python by Phiala Thouvenin [phialathouvenin@gmail.com] in 2018
+        for Python by Phiala Newman [newman41@purdue.edu] in 2018
     '''
-
+    
     if pad:
         vor = np.zeros(x.shape)
         x = np.pad(x, pad_width=2, mode='constant', constant_values=0)
@@ -101,8 +104,8 @@ def vorticity(x,y,u,v,dx=[],dy=[],method='leastsq',pad=False):
     else:
         vor = np.zeros(x.shape)
     if method == 'gradient': # Meynart [1983], Middleton and Wilcock [1994,pg315], etc...
-        dUdY = np.gradient(u)[0]
-        dVdX = np.gradient(v)[1]
+        dUdY = np.gradient(u)[0] 
+        dVdX = np.gradient(v)[1] 
         vor = dVdX - dUdY
     if method == 'leastsq':
         for i in np.arange(3,x.shape[1] - 2,1).reshape(-1):

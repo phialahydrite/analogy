@@ -27,33 +27,27 @@ def depth_synthetic_hist(tp_df,im_w,im_h,num_frames,square_size=8):
     #   ideal square size
     r_im_h = round(im_h/square_size)*square_size
     r_im_w = round(im_w/square_size)*square_size
-    num_x = len(np.linspace(0,r_im_w,round(im_w/square_size)))
-    num_y = len(np.linspace(0,r_im_h,round(im_h/square_size)))
+    num_x = len(np.linspace(0,r_im_w,int(round(im_w/square_size))))
+    num_y = len(np.linspace(0,r_im_h,int(round(im_h/square_size))))
     # calcuate burial, exhumation, and minimum depth values
-    #   additionally calcuate counts within each bin to get mean
-    #   values of each quantity
+    #   additionally calcuate counts within each bin to get mean 
+    #   values of each quantity h
     particle_pos = tp_df[['frame','y','x']].values
-    depth, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.depth,
-                                          density=False, range=extent)
+    depth, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.depth, range=extent)
     starting_depth, _ = np.histogramdd(particle_pos, bins=(num_frames,
-                                                           num_y,num_x),
-                                          weights=tp_df.starting_depth,
-                                          density=False, range=extent)
+                                                           num_y,num_x), 
+                                          weights=tp_df.starting_depth, range=extent)
     max_depth, _ = np.histogramdd(particle_pos, bins=(num_frames,
-                                                      num_y,num_x),
-                                          weights=tp_df.max_depth,
-                                          density=False, range=extent)
+                                                      num_y,num_x), 
+                                          weights=tp_df.max_depth, range=extent)
     cum_max_depth, _ = np.histogramdd(particle_pos, bins=(num_frames,
-                                                          num_y,num_x),
-                                          weights=tp_df.cum_max_depth,
-                                          density=False, range=extent)
-    geot_e, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.e_temp,
-                                          density=False, range=extent)
-    geot_b, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.b_temp,
-                                          density=False, range=extent)
+                                                          num_y,num_x), 
+                                          weights=tp_df.cum_max_depth, range=extent)
+    geot_e, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.e_temp, range=extent)
+    geot_b, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.b_temp, range=extent)
     part_counts, bin_edges, = np.histogramdd(particle_pos,
                                              bins=(num_frames,num_y,num_x),
                                              range=extent)
@@ -69,14 +63,10 @@ def depth_synthetic_hist(tp_df,im_w,im_h,num_frames,square_size=8):
 
 def displace_hist(tp_df,im_w,im_h,num_frames,square_size=8,mask=False):
     '''
-    Calcuate a histogram of current and cumulative displacements
-    for large collections of synthetic particles
-
     To plot:
     (bin_edges[2] is the y-dimension, bin_edges[1] is the x-dimension.)
-    plt.pcolormesh(bin_edges[2], bin_edges[1], values[frame,:,:],
-                    edgecolors='none')
-
+    plt.pcolormesh(bin_edges[2], bin_edges[1], values[frame,:,:], 
+                   edgecolors='none')
     '''
     # Set divide-by-zero warning to off to ignore warning.
     np.seterr(divide='ignore', invalid='ignore')
@@ -86,24 +76,20 @@ def displace_hist(tp_df,im_w,im_h,num_frames,square_size=8,mask=False):
     #   ideal square size
     r_im_h = round(im_h/square_size)*square_size
     r_im_w = round(im_w/square_size)*square_size
-    num_x = len(np.linspace(0,r_im_w,round(im_w/square_size)))
-    num_y = len(np.linspace(0,r_im_h,round(im_h/square_size)))
+    num_x = len(np.linspace(0,r_im_w,int(round(im_w/square_size))))
+    num_y = len(np.linspace(0,r_im_h,int(round(im_h/square_size))))
     # calcuate burial, exhumation, and minimum depth values
-    #   additionally calcuate counts within each bin to get mean
+    #   additionally calcuate counts within each bin to get mean 
     #   values of each quantity h
     particle_pos = tp_df[['frame','y','x']].values
-    exy, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.exy,
-                                          density=False, range=extent)
-    vort, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.vort,
-                                          density=False, range=extent)
-    cumexy, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.cumexy,
-                                          density=False, range=extent)
-    cumvort, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.cumvort,
-                                          density=False, range=extent)
+    exy, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.exy, range=extent)
+    vort, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.vort, range=extent)    
+    cumexy, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.cumexy, range=extent)
+    cumvort, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.cumvort, range=extent) 
     part_counts, bin_edges, = np.histogramdd(particle_pos,
                                              bins=(num_frames,num_y,num_x),
                                              range=extent)
@@ -118,18 +104,18 @@ def displace_hist(tp_df,im_w,im_h,num_frames,square_size=8,mask=False):
 
 def exhum_burial_hist(tp_df,im_w,im_h,num_frames,calc_conv=False,square_size=8):
     '''
-    Calcuate a histogram of depth, burial and exhumation over the history
+    Calcuate a histogram of depth, burial and exhumation over the history 
         of an experiment.
     Resuts are 3D arrays with a [framenum,y,x] format.
     Y and X are swapped to fit original image and python array coordinates.
 
-    MUCH, MUCH  faster than any of the depth_history functions, assuming that
-        [cumuative_depth_stats] is used to calcuate max depths, burial and
+    MUCH, MUCH  faster than any of the depth_history functions, assuming that 
+        [cumuative_depth_stats] is used to calcuate max depths, burial and 
         exhumation amounts prior.
 
     To plot:
     (bin_edges[2] is the y-dimension, bin_edges[1] is the x-dimension.)
-    plt.pcolormesh(bin_edges[2], bin_edges[1], values[frame,:,:],
+    plt.pcolormesh(bin_edges[2], bin_edges[1], values[frame,:,:], 
                    edgecolors='none')
     '''
     # Set divide-by-zero warning to off to ignore warning.
@@ -140,18 +126,16 @@ def exhum_burial_hist(tp_df,im_w,im_h,num_frames,calc_conv=False,square_size=8):
     #   ideal square size
     r_im_h = round(im_h/square_size)*square_size
     r_im_w = round(im_w/square_size)*square_size
-    num_x = len(np.linspace(0,r_im_w,round(im_w/square_size)))
-    num_y = len(np.linspace(0,r_im_h,round(im_h/square_size)))
+    num_x = len(np.linspace(0,r_im_w,int(round(im_w/square_size))))
+    num_y = len(np.linspace(0,r_im_h,int(round(im_h/square_size))))
     # calcuate burial, exhumation, and minimum depth values
-    #   additionally calcuate counts within each bin to get mean
+    #   additionally calcuate counts within each bin to get mean 
     #   values of each quantity h
     particle_pos = tp_df[['frame','y','x']].values
-    burial, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.burial,
-                                          density=False, range=extent)
-    exhumation, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.exhumation,
-                                          density=False, range=extent)
+    burial, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.burial, range=extent)
+    exhumation, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.exhumation, range=extent)   
     part_counts, bin_edges, = np.histogramdd(particle_pos,
                                              bins=(num_frames,num_y,num_x),
                                              range=extent)
@@ -163,18 +147,18 @@ def exhum_burial_hist(tp_df,im_w,im_h,num_frames,calc_conv=False,square_size=8):
 
 def depth_burial_hist(tp_df,im_w,im_h,num_frames,calc_conv=False,square_size=8):
     '''
-    Calcuate a histogram of depth, burial and exhumation over the history
+    Calcuate a histogram of depth, burial and exhumation over the history 
         of an experiment.
     Resuts are 3D arrays with a [framenum,y,x] format.
     Y and X are swapped to fit original image and python array coordinates.
 
-    MUCH, MUCH  faster than any of the depth_history functions, assuming that
-        [cumuative_depth_stats] is used to calcuate max depths, burial and
+    MUCH, MUCH  faster than any of the depth_history functions, assuming that 
+        [cumuative_depth_stats] is used to calcuate max depths, burial and 
         exhumation amounts prior.
 
     To plot:
     (bin_edges[2] is the y-dimension, bin_edges[1] is the x-dimension.)
-    plt.pcolormesh(bin_edges[2], bin_edges[1], values[frame,:,:],
+    plt.pcolormesh(bin_edges[2], bin_edges[1], values[frame,:,:], 
                    edgecolors='none')
     '''
     # Set divide-by-zero warning to off to ignore warning.
@@ -185,24 +169,20 @@ def depth_burial_hist(tp_df,im_w,im_h,num_frames,calc_conv=False,square_size=8):
     #   ideal square size
     r_im_h = round(im_h/square_size)*square_size
     r_im_w = round(im_w/square_size)*square_size
-    num_x = len(np.linspace(0,r_im_w,round(im_w/square_size)))
-    num_y = len(np.linspace(0,r_im_h,round(im_h/square_size)))
+    num_x = len(np.linspace(0,r_im_w,int(round(im_w/square_size))))
+    num_y = len(np.linspace(0,r_im_h,int(round(im_h/square_size))))
     # calcuate burial, exhumation, and minimum depth values
-    #   additionally calcuate counts within each bin to get mean
+    #   additionally calcuate counts within each bin to get mean 
     #   values of each quantity h
     particle_pos = tp_df[['frame','y','x']].values
-    burial, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.burial,
-                                          density=False, range=extent)
-    exhumation, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.exhumation,
-                                          density=False, range=extent)
-    cummindepth, _ = np.histogramdd(particle_pos,bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.cumuative_min_depth,
-                                          density=False, range=extent)
-    cumdD, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x),
-                                          weights=tp_df.dD_cum,
-                                          density=False, range=extent)
+    burial, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.burial, range=extent)
+    exhumation, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.exhumation, range=extent)   
+    cummindepth, _ = np.histogramdd(particle_pos,bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.cumuative_min_depth, range=extent)
+    cumdD, _ = np.histogramdd(particle_pos, bins=(num_frames,num_y,num_x), 
+                                          weights=tp_df.dD_cum, range=extent)
     part_counts, bin_edges, = np.histogramdd(particle_pos,
                                              bins=(num_frames,num_y,num_x),
                                              range=extent)
@@ -212,12 +192,10 @@ def depth_burial_hist(tp_df,im_w,im_h,num_frames,calc_conv=False,square_size=8):
     cumdD = np.ma.masked_invalid(cumdD / part_counts)
     cummindepth = np.ma.masked_invalid(cummindepth / part_counts)
     if calc_conv:
-        conv_bur, _ =  np.histogramdd(particle_pos,bins=(num_frames,num_y,num_x),
-                                              weights=tp_df.conv_during_burial,
-                                              density=False, range=extent)
-        conv_ex, _ =  np.histogramdd(particle_pos,bins=(num_frames,num_y,num_x),
-                                         weights=tp_df.conv_during_exhumation,
-                                         density=False, range=extent)
+        conv_bur, _ =  np.histogramdd(particle_pos,bins=(num_frames,num_y,num_x), 
+                                              weights=tp_df.conv_during_burial, range=extent)
+        conv_ex, _ =  np.histogramdd(particle_pos,bins=(num_frames,num_y,num_x), 
+                                         weights=tp_df.conv_during_exhumation, range=extent) 
         conv_bur = np.ma.masked_invalid(conv_bur / part_counts)
         conv_ex = np.ma.masked_invalid(conv_ex / part_counts)
         return burial, exhumation, cummindepth, cumdD, conv_bur,conv_ex, \

@@ -16,7 +16,7 @@ __all__ = [
 def roi_geom(filename):
     '''
     Reads a PIvab output file and extracts information about the  region
-        of interest, or the selected observation window, outside of which
+        of interest, or the selected observation window, outside of which 
         data is ignored
 
     Parameters
@@ -30,7 +30,7 @@ def roi_geom(filename):
         Compilation of measurements of the selected PIV region of interest.
 
     '''
-    # read data
+    # read data    
     data = pd.read_csv(filename,skiprows=3,usecols = [0,1,2,3],\
                                names=['x','y','u','v'])
     width = data.x.max() - data.x.min()
@@ -44,10 +44,10 @@ def PIV_framenumbers(filename):
     Read A/B frame numbers from PIvab output.
     Assumes that the frame number is the last number in the filename before
         extension.
-    Also reads filename for input, assuming filenumber is last number before
+    Also reads filename for input, assuming filenumber is last number before 
         extension.
     '''
-    frame_line = []
+    frame_line = [] 
     f=open(filename)
     lines=f.readlines()
     frame_line = lines[1]

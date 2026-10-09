@@ -6,9 +6,7 @@ background image, and checking PIV sub-pixel bias for a set of particle
 diameters.
 """
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-import scipy.stats as stats
 
 __all__ = [
     'tp_plot_traj',
@@ -16,21 +14,18 @@ __all__ = [
 ]
 
 
-def tp_plot_traj(trajs,sample_int=1,
-                    scale=61.,im_w=0.,im_h=0.,
-                    prefix='',
-                    scaled=False,save=False,
-                    cmap=plt.cm.viridis):
+def tp_plot_traj(trajs,sample_int=1,particle_int=1,scaled=False,save=False,
+                 cmap=plt.cm.viridis):
     '''
     Convenience function to plot all trajs in a given dataframe
         with scaled axes.
-    Optional settings for plotting every [sample_int] particle location,
-        useful for extremely large datasets.
+    Optional settings for plotting every [sample_int] particle location and/or
+        every [particle_int] particle, useful for extremely large datasets.
     '''
     f, ax = plt.subplots(figsize=(10,10))
     particle_it = np.sort(trajs['particle'].unique())
     trajs = trajs[trajs.particle.isin(particle_it)]
-    # initialize plot
+    # initialize plot 
     #   place ticks outside of plot to avoid covering image
     #   remove right and upper axes to simplify plot
     #   only plot ticks on the left and bottom of plot
@@ -59,7 +54,7 @@ def tp_plot_traj(trajs,sample_int=1,
         ax.set_ylabel('Height [cm]')
     else:
         ax.set_xlim([0,im_w])
-        ax.set_ylim([0,im_h])
+        ax.set_ylim([0,im_h])     
         ax.set_xlabel('Width [px]')
         ax.set_ylabel('Height [px]')
     if save:
@@ -71,10 +66,10 @@ def tp_plot_traj(trajs,sample_int=1,
 
 def test_subpix_bias(diameters,image):
     '''
-    Test uniformity of the subpixel bias for particles found within an
+    Test uniformity of the subpixel bias for particles found within an 
         image. A lower result represents even sampling from .0 to .9,
-        with larger numbers signifying that there are peak(s) in
-        subpixel values, and thus definite pixel bias in the analysis
+        with larger numbers signifying that there are peak(s) in 
+        subpixel values, and thus definite pixel bias in the analysis 
     Parameters
     ----------
     diameters: list

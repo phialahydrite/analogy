@@ -2,9 +2,7 @@
 
 *A toolkit for post-processing **analog** tectonic sandbox models — hence the pun.*
 
-Particle image velocimetry and particle tracking velocimetry (PIV/PTV) both provide a window into how scale model tectonic wedges behave. By utilizing the fantastic MATLAB toolkit PIVLab (available at https://www.pivlab.de/), we can analyze velocities and extract kinematic (and other) histories from the material within the wedge. This includes the use of synthetic particles that are essentially released into the velocity vector field and tracked as motion drives them along; deformational and synthetic geochronological measures can also be recorded with this change in position over time. 
-
-`analogy` consolidates seven standalone PIV and PTV analysis scripts written for my dissertation
+`analogy` consolidates seven standalone analysis scripts
 (`temperatures.py`, `subsurface_slip.py`, `SPTVcode.py`, `short_vertical.py`,
 `ratecomp.py`, `map_view_exhum_collection.py`, `erosional_thickness_and_time.py`)
 into a single, de-duplicated, importable Python package. Those scripts had
@@ -46,6 +44,45 @@ pipeline). `analogy._optdeps` provides a small soft-import helper in case
 future additions need one of these — importing `analogy` itself never
 requires them.
 
-## Future work
+## Notes on consolidation
 
-Examples soon to come.
+* Where the same function existed nearly identically across multiple
+  scripts (e.g. `fill`, `gridize`, `PIV_framenumbers`, `depth_calc`,
+  `mask_from_surface`), the most complete version (generally from
+  `map_view_exhum_collection.py`) was kept.
+* A few functions only existed in one of the smaller scripts
+  (`find_comp`, `reset_time`, `reset_time_2d`, `cumulative_depth_stats`,
+  `exhum_burial_hist`, `to_slices`, `subtract_staggered`,
+  `foreland_mask_surf`) and were pulled in from there.
+* One duplicate was dropped outright: `cumuative_depth_stats` (note the
+  typo) in `map_view_exhum_collection.py` is an earlier, misspelled copy
+  of `cumulative_depth_stats` — same logic, kept the correctly-named one.
+
+## Example
+
+`examples/subsurface_slip_example.py` is the script-level workflow of the
+original `subsurface_slip.py` rebuilt on this package (config dataclass per
+experiment, then PIV + particles -> slip/burial/exhumation grids -> subsurface
+slip maps, transparent PNGs for MATLAB `warp`, and max-slip comparisons).
+
+```bash
+python examples/subsurface_slip_example.py --demo   # synthetic data
+python examples/subsurface_slip_example.py          # edit EXPERIMENTS first
+```
+
+`examples/synthetic_particle_displacement.py` builds an analytic velocity field
+with a shortening zone, writes it as PIVlab-style files, advects markers with
+`particle_displacer`, and checks them against an RK4 solution (~0.3 px RMS).
+
+## Known limitations
+
+Several functions inherited from the original scripts read variables that
+were globals in the scripts (e.g. `images`, `pixelmm_scale`, `im_h`, `xmin`,
+`ymax`, `scale`) or rely on imports that were not carried over (`peakutils`,
+`rdp`, `medfilt`, `savgol_filter`, ...). These need explicit parameters before
+they can be called from outside the original scripts: `particle_displacer_temperatures*`,
+`deformation_front*`, `topographic_divide`, `structural_divide`,
+`slope_deffront`, `volume_calc`, `find_below_all`, `tp_plot_traj`,
+`test_subpix_bias`, `depth_diff`, `depth_rate`, `depth_stats_compilation`,
+`rdp_burial_calc_forlambda`, `extract_near_surf_dilation`, `foreland_mask_surf`,
+`reset_time_2d`. `particle_displacer` and the functions used by the examples are fixed and tested.

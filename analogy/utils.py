@@ -45,25 +45,25 @@ __all__ = [
 
 def fill(data, invalid=None):
     """
-    Replace the value of invalid 'data' cells (indicated by 'invalid')
+    Replace the value of invalid 'data' cells (indicated by 'invalid') 
     by the value of the nearest valid data cell
 
     Input:
         data:    numpy array of any dimension
-        invalid: a binary array of same shape as 'data'. True cells set where
+        invalid: a binary array of same shape as 'data'. True cells set where 
                  data value shoud be replaced.
                  If None (defaut), use: invalid  = np.isnan(data)
 
-    Output:
-        Return a filled array.
-
+    Output: 
+        Return a filled array. 
+        
     Modified From:
         https://stackoverflow.com/questions/3662361/fill-in-missing-values-
                     with-nearest-neighbour-in-python-numpy-masked-arrays
     """
-    if invalid is None:
+    if invalid is None: 
         invalid = np.isnan(data)
-    ind = nd.distance_transform_edt(invalid, return_distances=False,
+    ind = nd.distance_transform_edt(invalid, return_distances=False, 
                                     return_indices=True)
     return data[tuple(ind)]
 
@@ -119,7 +119,7 @@ def find_comp(array,index,replace=0.):
 def do_kdtree(target_points,orig_points,find_num):
     '''
     Simple wraparound to compute k-d Tree for k-dimensional data
-
+    
     Returns
     -------
     dist
@@ -127,7 +127,7 @@ def do_kdtree(target_points,orig_points,find_num):
     indicies
         -indicies of matched closest points
     '''
-    mytree = KDTree(target_points,balanced_tree=False,compact_nodes=False)
+    mytree = KDTree(target_points,balanced_tree=False,compact_nodes=False) 
     dist, indicies = mytree.query(list(orig_points),k=find_num)
     return dist, indicies
 
@@ -142,7 +142,7 @@ def first_closest(sample, pivot, k):
 
 def last_closest(sample, pivot, k):
     '''
-    Find k-nearest points from pivot in sample, pick last-ocurring instance
+    Find k-nearest points from pivot in sample, pick first-ocurring instance
     '''
     nearest = sorted(enumerate(sample), key=lambda nv: abs(nv[1] - pivot))[:k]
     return max([n[0] for n in nearest])
@@ -150,7 +150,7 @@ def last_closest(sample, pivot, k):
 
 def first_last(sample,pivot):
     '''
-
+    
 
     Parameters
     ----------
@@ -191,19 +191,19 @@ def line_fit(x,y):
         using least squares
     '''
     # straight line, y=f(x)
-    def f(x, A, B):
+    def f(x, A, B): 
         return A*x + B
     # only use non NaNs
-    idx = np.isfinite(x) & np.isfinite(y)
+    idx = np.isfinite(x) & np.isfinite(y) 
     # fit curve
-    m,b = curve_fit(f, x[idx], y[idx])[0]
+    m,b = curve_fit(f, x[idx], y[idx])[0] 
     return m,b
 
 
 def cmap_discretize(cmap, N):
     """Return a discrete colormap from the continuous colormap cmap.
-
-        cmap: colormap instance, eg. cm.jet.
+    
+        cmap: colormap instance, eg. cm.jet. 
         N: number of colors.
     """
     if type(cmap) == str:
@@ -215,7 +215,7 @@ def cmap_discretize(cmap, N):
     for ki, key in enumerate(('red','green','blue')):
         cdict[key] = [(indices[i], colors_rgba[i-1,ki], colors_rgba[i,ki]) for i in range(N+1)]
     # Return colormap object.
-    return colors.LinearSegmentedColormap(cmap.name + "_%d"%N, cdict, 1024)
+    return matplotlib.colors.LinearSegmentedColormap(cmap.name + "_%d"%N, cdict, 1024)
 
 
 def div_proportional_colormap(cmap='coolwarm', vmin=-1., vmax=1.,
@@ -237,7 +237,7 @@ def div_proportional_colormap(cmap='coolwarm', vmin=-1., vmax=1.,
 
 def masked_array_shift_zero(array):
     '''
-    Take masked (i.e., background replaced with NaN) wedge data of any type,
+    Take masked (i.e., background replaced with NaN) wedge data of any type, 
         and shift it so that the surface lines up with the abscissa.
     Used with extracting geothermal gradients.
     '''
@@ -310,7 +310,7 @@ def angle(directions):
 
     norm1 = np.sqrt((vec1 ** 2).sum(axis=1))
     norm2 = np.sqrt((vec2 ** 2).sum(axis=1))
-    cos = (vec1 * vec2).sum(axis=1) / (norm1 * norm2)
+    cos = (vec1 * vec2).sum(axis=1) / (norm1 * norm2)   
     return np.arccos(cos)
 
 
@@ -341,13 +341,13 @@ def reset_time(time_array,index_array,zero_start=False):
     '''
     time_reset = np.zeros(len(time_array))
     for i in index_array:
-        time_reset[i:] = time_array[0:len(time_array)-i]
+        time_reset[i:] = time_array[0:len(time_array)-i]    
     if zero_start:
         time_reset[:index_array[1]] = 0
     return time_reset
 
 
-def reset_time_2d(time_array,index_array,zero_start=False):
+def reset_time_2d(size,index_array,zero_start=False):
     '''
 
     Parameters
@@ -362,9 +362,9 @@ def reset_time_2d(time_array,index_array,zero_start=False):
         events
 
     '''
-    time_reset = np.zeros(time_array.size)
+    time_reset = np.zeros(size)
     for i in index_array:
-        time_reset[i:] = time_array[:,0:len(time_array)-i]
+        time_reset[i:] = time_array[:,0:len(time_array)-i]    
     if zero_start:
         time_reset[:,:index_array[1]] = 0
     return time_reset

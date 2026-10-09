@@ -3,10 +3,9 @@ analogy
 =======
 
 A toolkit for post-processing analog (sandbox) tectonic model experiments:
-particle image velocimetry/particle-tracking velocimetry (PIV/PTV),
-surface & deformation front extraction, particle burial/exhumation thermal
-history and kinematics, plate velocity & strain, and the histograms and
-other plots used to summarize them.
+PIV/particle-tracking velocimetry, surface & deformation-front extraction,
+particle burial/exhumation kinematics, plate velocity & strain, and the
+histograms/plots used to summarize them.
 
 The name is a small pun: this package analyzes *analog* models -- hence
 "analogy". It was consolidated from a set of standalone analysis scripts

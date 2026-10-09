@@ -7,12 +7,16 @@ time, dense particle-displacement field extraction (with optional
 temperature and deformation-front pass-through), and extraction of
 particles along a chosen line/section.
 """
+import re
+import time
 import numpy as np
 import pandas as pd
 from scipy import ndimage as nd
+from scipy import ndimage
+from scipy.ndimage import filters
 from scipy.interpolate import UnivariateSpline
-import peakutils
-from collections.abc import Iterable
+from scipy.signal import find_peaks
+from numpy.linalg import lstsq
 
 from .utils import fill, gridize, degridize, do_kdtree, angle, strictly_decreasing
 from .io import PIV_framenumbers
@@ -47,16 +51,24 @@ __all__ = [
 
 def particle_displacer(files,particles,framenumbers,surface_hdf5,
                               begin_file,end_file,
-                              step = 2, radius=24,
+                              step = 2, radius=24, 
                               verbose = False,
                               replace_nan = False,
                               fill_array = False,
-                              mask_piv = False):
-    '''
-    Using Matlab PILvab output with x,y,u,v data [files], displace synthetic
-        markers [particles], while simutaneously filtering PIV data that
-        falls outside of the model wedge, using calcuated surfaces
+                              mask_piv = False,
+                              pixelmm_scale = 1.,
+                              x_min = 0,
+                              img_h = None,
+                              y_max = None):
+    '''                       
+    Using Matlab PIvab output with x,y,u,v data [files], displace synthetic 
+        markers [particles], while simutaneously filtering PIV data that 
+        falls outside of the model wedge, using calcuated surfaces 
         [surface_hdf5], between a range of files [begin_file:end_file]
+    The original script relied on globals; they are now arguments:
+        pixelmm_scale : scale used to normalize velocity before differentiating
+        x_min         : x offset of the ROI in PIV (uncropped) coordinates
+        img_h, y_max  : only needed if [mask_piv]; shift surfaces into ROI
     '''
     #initial variables and lists
     start_frames = particles.frame.unique()
@@ -73,81 +85,81 @@ def particle_displacer(files,particles,framenumbers,surface_hdf5,
             start_time=time.time()
             # read frame numbers from PIV output
             fn, A_img_no, B_img_no = PIV_framenumbers(f)
-
+            
             # read PIV data, ignoring extra columns if they exist
             data = pd.read_csv(f,skiprows=3,usecols = [0,1,2,3],\
                                names=['x','y','u','v'])
-
+                
             # fill nan with zeros, do not use if using fill_array option
             if replace_nan:
                 data.loc[np.isnan(data.u)].u = 0.
                 data.loc[np.isnan(data.v)].v = 0.
-
+            
             # calcuate shear strain values
             u = gridize(data.x,data.y,data.u)
-            v = gridize(data.x,data.y,data.v)
-
+            v = gridize(data.x,data.y,data.v)   
+            
             # fill array nans with nearest valid neighbors
             if fill_array:
                 u = fill(u)
                 v = fill(v)
-
+            
             # smooth velocity arrays, calcuate shear strain
-            u = nd.median_filter(u, 4)/(pixelmm_scale*2)
-            v = nd.median_filter(v, 4)/(pixelmm_scale*2)
-            dUdY = np.gradient(u.T)[0]
+            u = ndimage.median_filter(u, 4)/(pixelmm_scale*2)
+            v = ndimage.median_filter(v, 4)/(pixelmm_scale*2)            
+            dUdY = np.gradient(u.T)[0] 
             dVdX = np.gradient(v.T)[1]
             ep_xy = 0.5 * (dUdY + dVdX)
-            data['exy'] = degridize(ep_xy)[:,2]
-
+            data['exy'] = degridize(ep_xy)[:,2] 
+            
             # calcuate vorticity (Meynart, Fung, Eringen, Timoshekno, etc...)
             VO = dVdX - dUdY
-            data['vort'] = degridize(VO)[:,2]
+            data['vort'] = degridize(VO)[:,2] 
 
             # flip PIvab format upside-down and shift on x-axis
             data.v = -data.v
             data.y = data.y.max()-data.y
             data.x = data.x - x_min
             xy = np.array([data.x,data.y]).T
-
+            
             # this is not needed if already masked in PIvab
-            if mask_piv:
+            if mask_piv: 
                 # read surface
                 surface = pd.read_hdf(surface_hdf5,'wedgetop_%05.0f'%B_img_no)
-                surface.x = surface.x-xmin
-                surface.y = surface.y-(images.frame_shape[0] - ymax)
-
+                surface.x = surface.x-x_min
+                surface.y = surface.y-(img_h - y_max)
+                
                 # return boolean index of points beneath surface
                 subsurface_piv = find_below(surface,xy)
-
-                # remove background velocities
+        
+                # remove background velocities 
                 data = data.loc[subsurface_piv]
             # background displacement coordinate values for kd-tree
             xy_target= np.vstack((data.x,data.y)).T
-
-            # INITIALIZE particle displacement arrays
-            if i == 0:
-                # initial particle location grid for kd-tree
+            
+            # INITIALIZE particle displacement arrays    
+            if i == 0: 
+                # initial particle location grid for kd-tree        
                 xy_orig = np.array(parts[['x','y']])
-
+                
                 # perform kd-tree, only using nearest PIV grid point
                 dist,ind = do_kdtree(xy_target,xy_orig,1)
-
-                # find associated displacements, strains, and vorticity
+                
+                # find associated displacements, strains, and vorticity 
                 #   within radius
                 u,v,exy,vort = np.zeros(len(xy_orig)),\
                                             np.zeros(len(xy_orig)),\
                                             np.zeros(len(xy_orig)),\
-                                            np.zeros(len(xy_orig))
+                                            np.zeros(len(xy_orig))    
                 close_ind =[]
                 for k in range(len(xy_orig)):
                     close_pts = ind[k][dist[k] < radius]
                     if len(close_pts)>=1:
-                        close_ind.append(int(close_pts))
+                        close_ind.append(int(np.ravel(close_pts)[0]))
                     else:
                         close_ind.append(None)
                 for k in range(len(xy_orig)):
-                    if close_ind[k] != None: #ignore empty
+                    if close_ind[k] != None: #ignore empty                
                         u[k] = data.u.iat[close_ind[k]]
                         v[k] = data.v.iat[close_ind[k]]
                         exy[k] = data.exy.iat[close_ind[k]]
@@ -175,15 +187,15 @@ def particle_displacer(files,particles,framenumbers,surface_hdf5,
                                         nxs,nys,nexy,nvort)).T,\
                                         columns = ['frame','particle','x','y',
                                                    'exy','vort'])
-
-            # CALCuATE incremental displacement arrays for each particle
+                    
+            # CALCuATE incremental displacement arrays for each particle    
             else:
                 # updated particle location grid for kd-tree
                 xy_orig_update = np.array([nxs,nys]).T
-
+                
                 # updated kd-tree for new particle locations, using one point
                 dist,ind = do_kdtree(xy_target,xy_orig_update,1)
-
+                
                 # calcuate displacements, strains, and vorticity within radius
                 u,v,exy,vort = np.zeros(len(xy_orig_update)),\
                                             np.zeros(len(xy_orig_update)),\
@@ -194,11 +206,11 @@ def particle_displacer(files,particles,framenumbers,surface_hdf5,
                     #determine location of nearest grid points
                     close_pts = ind[k][dist[k] < radius]
                     if len(close_pts)>=1:
-                        close_ind.append(int(close_pts))
+                        close_ind.append(int(np.ravel(close_pts)[0]))
                     else:
                         close_ind.append(None)
                 for k in range(len(xy_orig_update)):
-                    if close_ind[k] != None: #ignore empty
+                    if close_ind[k] != None: #ignore empty                
                         u[k] = data.u.iat[close_ind[k]]
                         v[k] = data.v.iat[close_ind[k]]
                         exy[k] = data.exy.iat[close_ind[k]]
@@ -207,7 +219,7 @@ def particle_displacer(files,particles,framenumbers,surface_hdf5,
                 nys = nys + v
                 nexy = exy
                 nvort = vort
-
+                
                 # compile further particle and frame info into DataFrame
                 continuing_pnums = np.arange(len(parts.particle.unique())) + \
                                         rolling_particle_nos
@@ -238,15 +250,15 @@ def particle_displacer_temperatures(piv_files,ero_temps,particles,
                                       framenumbers,
                                       surface_hdf5,
                                       begin_file,end_file,
-                                      step = 2, radius=24,
+                                      step = 2, radius=24, 
                                       verbose = False,
                                       replace_nan = False,
                                       fill_array = False,
                                       mask_piv = False):
-    '''
-    Using Matlab PIvab output with x,y,u,v data [files], displace synthetic
-        markers [particles], while simutaneously filtering PIV data that
-        falls outside of the model wedge, using calcuated surfaces
+    '''                       
+    Using Matlab PIvab output with x,y,u,v data [files], displace synthetic 
+        markers [particles], while simutaneously filtering PIV data that 
+        falls outside of the model wedge, using calcuated surfaces 
         [surface_hdf5], between a range of files [begin_file:end_file]
     '''
     #initial variables and lists
@@ -264,74 +276,74 @@ def particle_displacer_temperatures(piv_files,ero_temps,particles,
             start_time=time.time()
             # read frame numbers from PIV output
             fn, A_img_no, B_img_no = PIV_framenumbers(f)
-
+            
             # read PIV data, ignoring extra columns if they exist
             data = pd.read_csv(f,skiprows=3,usecols = [0,1,2,3],\
                                names=['x','y','u','v'])
-
+            
             # fill nan with zeros, do not use if using fill_array option
             if replace_nan:
                 data.loc[np.isnan(data.u)].u = 0.
                 data.loc[np.isnan(data.v)].v = 0.
-
+            
             # calcuate shear strain values
             U = gridize(data.x,data.y,data.u)
-            V = gridize(data.x,data.y,data.v)
-
+            V = gridize(data.x,data.y,data.v)   
+            
             # fill array nans with nearest valid neighbors
             if fill_array:
                 U = fill(U)
                 V = fill(V)
-
+            
             # smooth velocity arrays, calcuate shear strain
-            U = nd.median_filter(U, 4)/(pixelmm_scale*2)
-            V = nd.median_filter(V, 4)/(pixelmm_scale*2)
-            dUdY = np.gradient(U.T)[0]
+            U = ndimage.median_filter(U, 4)/(pixelmm_scale*2)
+            V = ndimage.median_filter(V, 4)/(pixelmm_scale*2)            
+            dUdY = np.gradient(U.T)[0] 
             dVdX = np.gradient(V.T)[1]
             ep_xy = 0.5 * (dUdY + dVdX)
-            data['exy'] = degridize(ep_xy)[:,2]
-
+            data['exy'] = degridize(ep_xy)[:,2] 
+            
             # calcuate vorticity (Meynart, Fung, Eringen, Timoshekno, etc...)
             VO = dVdX - dUdY
-            data['vort'] = degridize(VO)[:,2]
+            data['vort'] = degridize(VO)[:,2] 
 
             # flip PIvab format upside-down and shift on x-axis
             data.v = -data.v
             data.y = data.y.max() - data.y
             data.x = data.x - data.x.min()
             xy = np.array([data.x,data.y]).T
-
+            
             # read  and merge temperature data, shifting coordinates
             temp_e = pd.read_csv(ero_temps[i], delimiter=' ',
                                names=['x','y','temp_c'])
-
+            
             # place temps in data by merging to align with existing values
             data = data.merge(temp_e,left_on=['x','y'],right_on=['x','y'],
                        how='left')
             # this is not needed if already masked in PIVlab
-            if mask_piv:
+            if mask_piv: 
                 # read surface
                 surface = pd.read_hdf(surface_hdf5,'wedgetop_%05.0f'%B_img_no)
                 surface.x = surface.x-xmin
                 surface.y = surface.y-(images.frame_shape[0] - ymax)
-
+                
                 # return boolean index of points beneath surface
                 subsurface_piv = find_below(surface,xy)
-
-                # remove background velocities
+        
+                # remove background velocities 
                 data = data.loc[subsurface_piv]
             # background displacement coordinate values for kd-tree
             xy_target= np.vstack((data.x,data.y)).T
-
-            # INITIALIZE particle displacement arrays
-            if i == 0:
-                # initial particle location grid for kd-tree
+            
+            # INITIALIZE particle displacement arrays    
+            if i == 0: 
+                # initial particle location grid for kd-tree        
                 xy_orig = np.array(parts[['x','y']])
-
+                
                 # perform kd-tree, only using nearest PIV grid point
                 dist,ind = do_kdtree(xy_target,xy_orig,1)
-
-                # find associated displacements, strains, and vorticity
+                
+                # find associated displacements, strains, and vorticity 
                 #   within radius
                 u,v,exy,vort,e_temp = np.zeros(len(xy_orig)),\
                                             np.zeros(len(xy_orig)),\
@@ -342,11 +354,11 @@ def particle_displacer_temperatures(piv_files,ero_temps,particles,
                 for k in range(len(xy_orig)):
                     close_pts = ind[k][dist[k] < radius]
                     if len(close_pts)>=1:
-                        close_ind.append(int(close_pts))
+                        close_ind.append(int(np.ravel(close_pts)[0]))
                     else:
                         close_ind.append(None)
                 for k in range(len(xy_orig)):
-                    if close_ind[k] != None: #ignore empty
+                    if close_ind[k] != None: #ignore empty                
                         u[k] = data.u.iat[close_ind[k]]
                         v[k] = data.v.iat[close_ind[k]]
                         exy[k] = data.exy.iat[close_ind[k]]
@@ -357,7 +369,7 @@ def particle_displacer_temperatures(piv_files,ero_temps,particles,
                 nexy = exy
                 nvort = vort
                 ne_temp = e_temp
-
+                
                 first_pnums = np.arange(len(parts.particle.unique())) + \
                                         rolling_particle_nos
                 first_frame = np.ones(len(first_pnums))*B_img_no
@@ -365,15 +377,15 @@ def particle_displacer_temperatures(piv_files,ero_temps,particles,
                                         nxs,nys,nexy,nvort,ne_temp)).T,\
                                         columns = ['frame','particle','x','y',
                                                    'exy','vort','e_temp'])
-
-            # CALCULATE incremental displacement arrays for each particle
+                    
+            # CALCULATE incremental displacement arrays for each particle    
             else:
                 # updated particle location grid for kd-tree
                 xy_orig_update = np.array([nxs,nys]).T
-
+                
                 # updated kd-tree for new particle locations, using one point
                 dist,ind = do_kdtree(xy_target,xy_orig_update,1)
-
+                
                 # calcuate displacements, strains, and vorticity within radius
                 u,v,exy,vort,e_temp = np.zeros(len(xy_orig_update)),\
                                             np.zeros(len(xy_orig)),\
@@ -385,11 +397,11 @@ def particle_displacer_temperatures(piv_files,ero_temps,particles,
                     #determine location of nearest grid points
                     close_pts = ind[k][dist[k] < radius]
                     if len(close_pts)>=1:
-                        close_ind.append(int(close_pts))
+                        close_ind.append(int(np.ravel(close_pts)[0]))
                     else:
                         close_ind.append(None)
                 for k in range(len(xy_orig_update)):
-                    if close_ind[k] != None: #ignore empty
+                    if close_ind[k] != None: #ignore empty                
                         u[k] = data.u.iat[close_ind[k]]
                         v[k] = data.v.iat[close_ind[k]]
                         exy[k] = data.exy.iat[close_ind[k]]
@@ -420,7 +432,7 @@ def particle_displacer_temperatures(piv_files,ero_temps,particles,
                       'Frames %05.0f and %05.0f '%(A_img_no,B_img_no) + \
                       'in %06.3f seconds, '%(frame_elapsed) + \
                       '%010.3f total seconds elapsed.'%(total_time))
-
+                      
         # compile data (may be large, >20GB)
         # keep NaNs to filter later, if needed
         df.append(pd.concat((first,pd.concat(continuing))))
@@ -434,15 +446,15 @@ def particle_displacer_temperatures_dfmfront(piv_files,ero_temps,front,
                                       framenumbers,
                                       surface_hdf5,
                                       begin_file,end_file,
-                                      step = 2, radius=24,
+                                      step = 2, radius=24, 
                                       verbose = False,
                                       replace_nan = False,
                                       fill_array = False,
                                       mask_piv = False):
-    '''
-    Using Matlab PIvab output with x,y,u,v data [files], displace synthetic
-        markers [particles], while simutaneously filtering PIV data that
-        falls outside of the model wedge, using calcuated surfaces
+    '''                       
+    Using Matlab PIvab output with x,y,u,v data [files], displace synthetic 
+        markers [particles], while simutaneously filtering PIV data that 
+        falls outside of the model wedge, using calcuated surfaces 
         [surface_hdf5], between a range of files [begin_file:end_file]
     '''
     #initial variables and lists
@@ -460,74 +472,74 @@ def particle_displacer_temperatures_dfmfront(piv_files,ero_temps,front,
             start_time=time.time()
             # read frame numbers from PIV output
             fn, A_img_no, B_img_no = PIV_framenumbers(f)
-
+            
             # read PIV data, ignoring extra columns if they exist
             data = pd.read_csv(f,skiprows=3,usecols = [0,1,2,3],\
                                names=['x','y','u','v'])
-
+            
             # fill nan with zeros, do not use if using fill_array option
             if replace_nan:
                 data.loc[np.isnan(data.u)].u = 0.
                 data.loc[np.isnan(data.v)].v = 0.
-
+            
             # calcuate shear strain values
             U = gridize(data.x,data.y,data.u)
-            V = gridize(data.x,data.y,data.v)
-
+            V = gridize(data.x,data.y,data.v)   
+            
             # fill array nans with nearest valid neighbors
             if fill_array:
                 U = fill(U)
                 V = fill(V)
-
+            
             # smooth velocity arrays, calcuate shear strain
             U = ndimage.median_filter(U, 4)/(pixelmm_scale*2)
-            V = ndimage.median_filter(V, 4)/(pixelmm_scale*2)
-            dUdY = np.gradient(U.T)[0]
+            V = ndimage.median_filter(V, 4)/(pixelmm_scale*2)            
+            dUdY = np.gradient(U.T)[0] 
             dVdX = np.gradient(V.T)[1]
             ep_xy = 0.5 * (dUdY + dVdX)
-            data['exy'] = degridize(ep_xy)[:,2]
-
+            data['exy'] = degridize(ep_xy)[:,2] 
+            
             # calcuate vorticity (Meynart, Fung, Eringen, Timoshekno, etc...)
             VO = dVdX - dUdY
-            data['vort'] = degridize(VO)[:,2]
+            data['vort'] = degridize(VO)[:,2] 
 
             # flip PIVlab format upside-down and shift on x-axis
             data.v = -data.v
             data.y = data.y.max() - data.y
             data.x = data.x - data.x.min()
             xy = np.array([data.x,data.y]).T
-
+            
             # read  and merge temperature data, shifting coordinates
             temp_e = pd.read_csv(ero_temps[i], delimiter=' ',
                                names=['x','y','temp_c'])
-
+            
             # place temps in data by merging to align with existing values
             data = data.merge(temp_e,left_on=['x','y'],right_on=['x','y'],
                        how='left')
             # this is not needed if already masked in PIVlab
-            if mask_piv:
+            if mask_piv: 
                 # read surface
                 surface = pd.read_hdf(surface_hdf5,'wedgetop_%05.0f'%B_img_no)
                 surface.x = surface.x-xmin
                 surface.y = surface.y-(images.frame_shape[0] - ymax)
-
+                
                 # return boolean index of points beneath surface
                 subsurface_piv = find_below(surface,xy)
-
-                # remove background velocities
+        
+                # remove background velocities 
                 data = data.loc[subsurface_piv]
             # background displacement coordinate values for kd-tree
             xy_target = np.vstack((data.x,data.y)).T
-
-            # INITIALIZE particle displacement arrays
-            if i == 0:
-                # initial particle location grid for kd-tree
+            
+            # INITIALIZE particle displacement arrays    
+            if i == 0: 
+                # initial particle location grid for kd-tree        
                 xy_orig = np.array(parts[['x','y']])
-
+                
                 # perform kd-tree, only using nearest PIV grid point
                 dist,ind = do_kdtree(xy_target,xy_orig,1)
-
-                # find associated displacements, strains, and vorticity
+                
+                # find associated displacements, strains, and vorticity 
                 #   within radius
                 u,v,exy,vort,e_temp = np.zeros(len(xy_orig)),\
                                             np.zeros(len(xy_orig)),\
@@ -538,11 +550,11 @@ def particle_displacer_temperatures_dfmfront(piv_files,ero_temps,front,
                 for k in range(len(xy_orig)):
                     close_pts = ind[k][dist[k] < radius]
                     if len(close_pts)>=1:
-                        close_ind.append(int(close_pts))
+                        close_ind.append(int(np.ravel(close_pts)[0]))
                     else:
                         close_ind.append(None)
                 for k in range(len(xy_orig)):
-                    if close_ind[k] != None: #ignore empty
+                    if close_ind[k] != None: #ignore empty                
                         u[k] = data.u.iat[close_ind[k]]
                         v[k] = data.v.iat[close_ind[k]]
                         exy[k] = data.exy.iat[close_ind[k]]
@@ -553,10 +565,10 @@ def particle_displacer_temperatures_dfmfront(piv_files,ero_temps,front,
                 nexy = exy
                 nvort = vort
                 ne_temp = e_temp
-
+                
                 # shifted x-value
                 nxs_dfm = nxs - front[front.frame == B_img_no].x_df.values
-
+                
                 first_pnums = np.arange(len(parts.particle.unique())) + \
                                         rolling_particle_nos
                 first_frame = np.ones(len(first_pnums))*B_img_no
@@ -565,15 +577,15 @@ def particle_displacer_temperatures_dfmfront(piv_files,ero_temps,front,
                                         columns = ['frame','particle','x','y',
                                                    'exy','vort','e_temp',
                                                    'x_df'])
-
-            # CALCULATE incremental displacement arrays for each particle
+                    
+            # CALCULATE incremental displacement arrays for each particle    
             else:
                 # updated particle location grid for kd-tree
                 xy_orig_update = np.array([nxs,nys]).T
-
+                
                 # updated kd-tree for new particle locations, using one point
                 dist,ind = do_kdtree(xy_target,xy_orig_update,1)
-
+                
                 # calcuate displacements, strains, and vorticity within radius
                 u,v,exy,vort,e_temp = np.zeros(len(xy_orig_update)),\
                                             np.zeros(len(xy_orig)),\
@@ -585,11 +597,11 @@ def particle_displacer_temperatures_dfmfront(piv_files,ero_temps,front,
                     #determine location of nearest grid points
                     close_pts = ind[k][dist[k] < radius]
                     if len(close_pts)>=1:
-                        close_ind.append(int(close_pts))
+                        close_ind.append(int(np.ravel(close_pts)[0]))
                     else:
                         close_ind.append(None)
                 for k in range(len(xy_orig_update)):
-                    if close_ind[k] != None: #ignore empty
+                    if close_ind[k] != None: #ignore empty                
                         u[k] = data.u.iat[close_ind[k]]
                         v[k] = data.v.iat[close_ind[k]]
                         exy[k] = data.exy.iat[close_ind[k]]
@@ -600,7 +612,7 @@ def particle_displacer_temperatures_dfmfront(piv_files,ero_temps,front,
                 nexy = exy
                 nvort = vort
                 ne_temp = e_temp
-
+                
                 # shifted x-value
                 f_data = front[front.frame == B_img_no]
                 if len(f_data) > 0:
@@ -608,7 +620,7 @@ def particle_displacer_temperatures_dfmfront(piv_files,ero_temps,front,
                 else:
                     f_pos = front[front.frame == A_img_no].x_df.values
                 nxs_dfm = nxs - f_pos
-
+                
                 # compile further displaced particle and frame information
                 continuing_pnums = np.arange(len(parts.particle.unique())) + \
                                         rolling_particle_nos
@@ -629,7 +641,7 @@ def particle_displacer_temperatures_dfmfront(piv_files,ero_temps,front,
                       'Frames %05.0f and %05.0f '%(A_img_no,B_img_no) + \
                       'in %06.3f seconds, '%(frame_elapsed) + \
                       '%010.3f total seconds elapsed.'%(total_time))
-
+                      
         # compile data (may be large, >20GB)
         # keep NaNs to filter later, if needed
         df.append(pd.concat((first,pd.concat(continuing))))
@@ -645,7 +657,7 @@ def depth_calc(img_h,trajs,frame_spacing,surfname,preflipped=False,silent=True,
     USE THIS:
     This version of the function caluates depth for each particle at each
         frame en masse, rather than calcuate an interpolation for each particle
-        individually at each frame. This is roughly 1000X faster than other
+        individually at each frame. This is roughly 1000X faster than other 
         functions
     Modified for PIV pseudoparticle tracking, with simpler column format
     Modified to accept surfaces in uncropped image coordinates
@@ -659,24 +671,24 @@ def depth_calc(img_h,trajs,frame_spacing,surfname,preflipped=False,silent=True,
     trajs : trackpy trajectories
         Linked particle paths calcuated from trackpy
     frame_spacing : integer
-        'distance' between frames that change in depth shoud be calcuated
+        'distance' between frames that change in depth shoud be calcuated 
     surfname : HDF5 store
         contains the model topography of every image present in experiment
-
+        
     Returns
     -------
     df : Pandas DataFrame
         a DataFrame containing all corresponding data from trajs, with addition
-        of depth other columns.
+        of depth other columns. 
     '''
     # find image height for shifting
-    # unique elements of frames to loop over
+    # unique elements of frames to loop over 
     unique_frames = trajs.frame.unique()[::frame_spacing]
     # store interpolation functions for entire experiment in list
     #   this is to avoid interpolation being done repeatedly unnecessarily
     s_funcs=[]
     for fr in unique_frames:
-        # corrsponding section of trajs for each combo
+        # corrsponding section of trajs for each combo 
 
         # read in calcuated surface for depth calcuation
         try:
@@ -686,17 +698,17 @@ def depth_calc(img_h,trajs,frame_spacing,surfname,preflipped=False,silent=True,
         # if back-of-box edge of surface has edge effects, only use surface
         #   past [edge_buf] pixels
         if skip_edge:
-            su = su[edge_buf:]
+            su = su[edge_buf:]        
         # remove any NaNs
         su.dropna(inplace=True)
-
+ 
         # if surfaces were calcuated on larger image and left in those coord.,
         #   shift them so that the surface starts at x=0,y=surface elevation
         #   from base
         if from_larger:
             su.x = su.x - x_min
             su.y = su.y - (img_h-y_max)
-
+            
         # create univariate interpolation function for surface
         #   (some trajectories fall between pixels)
         if preflipped:
@@ -712,7 +724,7 @@ def depth_calc(img_h,trajs,frame_spacing,surfname,preflipped=False,silent=True,
     df = []
     for fr in unique_frames:
         sel = trajs[(trajs.frame == fr)].sort_values(by=['particle'])
-        if not sel.empty:
+        if not sel.empty:            
             # calcuate depth for every point (from stored surface functions)
             depth = sel.y - s_funcs[f_idx.index(fr)][1](sel.x)
             if not silent:
@@ -728,7 +740,7 @@ def find_nearest_spatemp(tp_df,x,y,t,num):
     Convience function to extract the nearest points in [tp_df]
         to a specified location in space and convergence [x,y,t],
         to be used to extract points that pass through said point
-        at different points in the experiment. Input to [x,y,t] can
+        at different points in the experiment. Input to [x,y,t] can 
         be a single point, lists, or column arrays.
     '''
     target = tp_df[['x','y','cum_conv']]
@@ -759,7 +771,7 @@ def line_particles_subsel(tp_df,tp_df_fp,xmin,xmax,line_pos,line_width,
     '''
     Extract particles at a given depth, within a narrow [line_width] range
         of the line, as well as a confined length.
-    Requires a DataFrame containing particle tracks, a DataFrame containing the
+    Requires a DataFrame containing particle tracks, a DataFrame containing the 
         locations of the first observation of each particle, and spatial limits.
     '''
     tp_df_fp = tp_df_fp.sort_values(by=['x'])
@@ -780,7 +792,7 @@ def line_particles_subsel_all(tp_df,tp_df_fp,xmin,xmax,line_pos,line_width):
     '''
     Extract particles at a given depth, within a narrow [line_width] range
         of the line, as well as a confined length.
-    Requires a DataFrame containing particle tracks, a DataFrame containing the
+    Requires a DataFrame containing particle tracks, a DataFrame containing the 
         locations of the first observation of each particle, and spatial limits.
     '''
     tp_df_fp = tp_df_fp.sort_values(by=['x'])
@@ -827,24 +839,24 @@ def first_appearance_length(trajectories):
         df_A_first[particle] = \
             particles[['particle','x','y']][particles.frame == particles.frame.min()]
     df_A_first = pd.concat(df_A_first)
-
+    
     df_A_first_appear = {}
     for particle, particles in trajectories.groupby("particle"):
         df_A_first_appear[particle] = particles.frame.min()
     df_A_first_appear = pd.DataFrame(list(df_A_first_appear.items()),
-                                     columns=('particle','first_frame'))
+                                     columns=('particle','first_frame'))   
 
     df_A_plen = {}
     for particle, particles in trajectories.groupby("particle"):
         df_A_plen[particle] = len(particles.frame)
     df_A_plen = pd.DataFrame(list(df_A_plen.items()),
-                                     columns=('particle','part_len'))
-
+                                     columns=('particle','part_len'))    
+                                     
     df_A_all = pd.DataFrame.merge(pd.DataFrame.merge(df_A_first,
                                                      df_A_first_appear,
                                                      on='particle'),
                                                      df_A_plen,on='particle')
-
+    
     return df_A_all
 
 
@@ -892,7 +904,7 @@ def starting_depth(group):
 
 def starting_max_depth_redux(df):
     '''
-    Cacluate the starting depth of each grouped particle into a flattened
+    Cacluate the starting depth of each grouped particle into a flattened 
         list to then merge with DataFrame
     Returns starting depth, max depth, frame where max depth was reached
     '''
@@ -965,7 +977,7 @@ def cumulative_depth_stats(tp_df,calc_burex=True):
 
 def shift_x_def(df, def_front_x):
     '''
-    Calcuate the x position of every particle in [df.x], corrected for the
+    Calcuate the x position of every particle in [df.x], corrected for the 
     position of the deformation front at any given frame [def_front_x.x].
     '''
     # work on copy of dataframe, make new column for front-corrected particle
@@ -985,7 +997,7 @@ def shift_x_def(df, def_front_x):
 
 def shift_x_def_simple(df, def_front_x):
     '''
-    Calcuate the x position of every particle in [df.x], corrected for the
+    Calcuate the x position of every particle in [df.x], corrected for the 
     position of the deformation front at any given frame [def_front_x.x].
     '''
     # loop over every frame, subtract deformation front from existing x-values
@@ -997,21 +1009,21 @@ def shift_x_def_simple(df, def_front_x):
 
 def rdp_burial_calc_forlambda(traj,ep=3,threshold=5,min_peak_dist=1):
     '''
-    Use the Ramer–Douglas–Peucker algorithm to calcuate turning points in
+    Use the Ramer–Douglas–Peucker algorithm to calcuate turning points in 
         simplified particle trajectories, in order to calcuate the amount
         of burial after the first instance of burial.
-
+    
     Also uses the modue 'peakutils' to find the first peak in anguar change
         in simplified trajectories, corresponding to the first burial of a
         particle.
-
-    Shoud be used with a small ep [< 10], or threshold for identifying
+    
+    Shoud be used with a small ep [< 10], or threshold for identifying 
         simplified points, otherwise trajectories may become too simple and
         lose important parts of the overall path.
-
+    
     Likely only works for particles that start at constant depth and get buried,
         not for particles disovered later that only get buried.
-
+        
     TO CALCULATE start of burial and start of exhumation, use:
         new_df = tp_df.groupby('particle').apply(lambda x: rdp_burial_calc_forlambda(x)[-1])
     '''
@@ -1023,37 +1035,37 @@ def rdp_burial_calc_forlambda(traj,ep=3,threshold=5,min_peak_dist=1):
         traj_arr = traj[['cum_conv','depth']].values
         simplified_trajectory = rdp(traj_arr, epsilon=ep)
         scc, sd = simplified_trajectory.T
-
+        
         # Compute the direction vectors on the simplified_trajectory.
         directions = np.diff(simplified_trajectory, axis=0)
         theta = angle(directions)
         # match angle vector to length of simplified depth trajectory
         dummy_ang = np.hstack((0,theta,0))
-
+        
         #only particles that move enough to have an anguar change
         if max(dummy_ang) != 0:
         # peaks in the measure of anguar change over the simplified trajectory
         #   adjust [mean_peak_dist] so quick changes in depth aren't ignored
-            angle_peaks = peakutils.indexes(dummy_ang,
-                                            thres=0.02/max(dummy_ang),
+            angle_peaks = peakutils.indexes(dummy_ang, 
+                                            thres=0.02/max(dummy_ang), 
                                             min_dist=min_peak_dist)
-
+            
             # find first peak [first burial], and calcuate depth
-            if len(angle_peaks) > 0: #only particles with significant angle
+            if len(angle_peaks) > 0: #only particles with significant angle 
                 depth_at_turn = sd[angle_peaks[0]]
             else:
                 depth_at_turn = np.array(0.)
             max_depth = min(sd)
-
+            
             # calcuate cum_conv and depth values where depth increase
             if len(angle_peaks) > 0:
                 cc_at_turn = scc[angle_peaks[0]]
             else:
                 cc_at_turn = np.array(0.)
             cc_at_max_depth = scc[np.where(sd == min(sd))]
-            # test if all points before and including maxlimum depth decrease,
-            #   these points have no major turn in depth and undergo burial
-            #   as soon as they are identified, therefore the start of burial
+            # test if all points before and including maxlimum depth decrease, 
+            #   these points have no major turn in depth and undergo burial 
+            #   as soon as they are identified, therefore the start of burial 
             #   is the start of the trajectory itself.
             if strictly_decreasing(sd[scc<=cc_at_max_depth]):
                 cc_at_turn = scc[0]
@@ -1067,9 +1079,9 @@ def rdp_burial_calc_forlambda(traj,ep=3,threshold=5,min_peak_dist=1):
             cc_at_max_depth = np.array(0.)
             burial_magnitude = depth_at_turn - max_depth
             burial_cum_conv = cc_at_max_depth - cc_at_turn
-        # only return burial of the cum_conv distance is positive (i.e., the
+        # only return burial of the cum_conv distance is positive (i.e., the 
         #   particle is still increasing in depth)
-        if isinstance(burial_cum_conv, Iterable):
+        if isinstance(burial_cum_conv, collections.Iterable):
             if all(burial_cum_conv) > 0:
                 traj.loc[traj.cum_conv==cc_at_turn,'conv_burial']=1.
                 traj.loc[traj.cum_conv==cc_at_max_depth[0],'conv_exhum']=1.
@@ -1092,9 +1104,9 @@ def rdp_burial_calc_forlambda(traj,ep=3,threshold=5,min_peak_dist=1):
 def conv_between(traj):
     '''
     Used to calcuate the amount of convergence from start of burial
-        and start of exhumation in a dataframe with columns produced by
+        and start of exhumation in a dataframe with columns produced by 
         [rdp_burial_calc_forlambda], and applied using lambdas:
-
+        
         new_df = df.groupby('particle').apply(lambda x: conv_between(x))
     '''
     if len(traj[traj.conv_exhum == 1].frame.values - traj.head(1).frame.values)>0\
