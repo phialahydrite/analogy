@@ -4,7 +4,7 @@
 
 Particle image velocimetry and particle tracking velocimetry (PIV/PTV) both provide a window into how scale model tectonic wedges behave. By utilizing the fantastic MATLAB toolkit PIVLab (available at https://www.pivlab.de/), we can analyze velocities and extract kinematic (and other) histories from the material within the wedge. This includes the use of synthetic particles that are essentially released into the velocity vector field and tracked as motion drives them along; deformational and synthetic geochronological measures can also be recorded with this change in position over time. 
 
-`analogy` consolidates seven standalone PIV and PTV analysis scripts
+`analogy` consolidates seven standalone PIV and PTV analysis scripts written for my dissertation
 (`temperatures.py`, `subsurface_slip.py`, `SPTVcode.py`, `short_vertical.py`,
 `ratecomp.py`, `map_view_exhum_collection.py`, `erosional_thickness_and_time.py`)
 into a single, de-duplicated, importable Python package. Those scripts had
