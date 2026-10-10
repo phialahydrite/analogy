@@ -60,19 +60,11 @@ requires them.
 
 ## Example
 
-`examples/subsurface_slip_example.py` is the script-level workflow of the
-original `subsurface_slip.py` rebuilt on this package (config dataclass per
-experiment, then PIV + particles -> slip/burial/exhumation grids -> subsurface
-slip maps, transparent PNGs for MATLAB `warp`, and max-slip comparisons).
-
-```bash
-python examples/subsurface_slip_example.py --demo   # synthetic data
-python examples/subsurface_slip_example.py          # edit EXPERIMENTS first
-```
-
 `examples/synthetic_particle_displacement.py` builds an analytic velocity field
 with a shortening zone, writes it as PIVlab-style files, advects markers with
 `particle_displacer`, and checks them against an RK4 solution (~0.3 px RMS).
+
+See [here](https://phialahydrite.github.io/synthetic_particle_displacement.html) for it in action.
 
 ## Known limitations
 
