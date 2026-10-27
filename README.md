@@ -2,7 +2,7 @@
 
 *A toolkit for post-processing **analog** tectonic sandbox models — hence the pun.*
 
-`analogy` consolidates seven standalone analysis scripts
+`analogy` consolidates seven standalone analysis scripts written for my [dissertation](https://docs.lib.purdue.edu/dissertations/AAI30506060/)
 (`temperatures.py`, `subsurface_slip.py`, `SPTVcode.py`, `short_vertical.py`,
 `ratecomp.py`, `map_view_exhum_collection.py`, `erosional_thickness_and_time.py`)
 into a single, de-duplicated, importable Python package. Those scripts had
