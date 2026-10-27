@@ -11,6 +11,9 @@ time; this package keeps the most complete/most recent version of each and
 organizes everything by what it does rather than which script happened to
 need it that day.
 
+While focused on analog modeling, many functions of this package can be directly
+applied to other PIV analysis.
+
 ## Install
 
 ```bash
